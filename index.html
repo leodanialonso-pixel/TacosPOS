@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://www.gstatic.com/devrel-devsite/prod/vc3d1f8793a388926c8024c04207865c328e12f67160fa4e97669d078d46a4e32/firebase/images/touchicon-180.png" type="image/png">
+    
+    <title>Tacos Mike - Punto de Venta Simple</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style link="styles.css"></style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Overlay de Carga -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="flex flex-col items-center">
+            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-gray-700">Conectando a la Taquería...</p>
+        </div>
+    </div>
+
+    <!-- Pantalla de Login -->
+    <div id="login-screen" class="hidden min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    🌮 La Taqueria del Mike
+                </h2>
+                <p class="mt-2 text-center text-sm text-gray-600">
+                    Inicia sesión para continuar
+                </p>
+            </div>
+            <form id="login-form" class="mt-8 space-y-6">
+                <div class="rounded-md shadow-sm space-y-4">
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email de la Taquería</label>
+                        <input id="email" name="email" type="email" required 
+                               class="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10"
+                               placeholder="admin@mitaqueria.com">
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                        <input id="password" name="password" type="password" required
+                               class="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10"
+                               placeholder="Tu contraseña">
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit" id="login-btn"
+                            class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                        Iniciar Sesión
+                    </button>
+                </div>
+
+                <div class="text-center">
+                    <button type="button" id="register-toggle" class="text-sm text-teal-600 hover:text-teal-500">
+                        ¿Primera vez? Registrar nueva taquería
+                    </button>
+                </div>
+            </form>
+
+            <div id="auth-message" class="mt-4 text-center p-2 rounded-lg hidden"></div>
+        </div>
+    </div>
+
+    <div id="app" class="hidden max-w-6xl mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <div></div>
+                <h1 class="text-4xl font-extrabold text-teal-700">TacoPOS 🌮</h1>
+                <button id="logout-btn" class="text-sm text-red-600 hover:text-red-800 px-3 py-1 border border-red-300 rounded-lg hover:bg-red-50">
+                    Cerrar Sesión
+                </button>
+            </div>
+            <p class="text-gray-500">Gestión de Pedidos y Reportes</p>
+            <p class="mt-2 text-sm text-gray-400">Usuario: <span id="user-email">Cargando...</span></p>
+            <div class="flex justify-center items-center space-x-2 mt-2">
+                <p class="text-xs text-gray-300">Corte del día: <span id="current-date">Cargando...</span></p>
+                <button id="change-date-btn" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-300 rounded">
+                    Cambiar Fecha
+                </button>
+            </div>
+        </header>
+
+        <!-- Navegación de Pestañas -->
+        <nav class="tabs-container mb-6">
+            <button id="tab-ventas" class="py-3 px-6 text-sm font-semibold text-gray-600 focus:outline-none transition duration-150 ease-in-out active-tab" onclick="changeTab('ventas')">
+                Pedidos / Cuentas
+            </button>
+            <button id="tab-gastos" class="py-3 px-6 text-sm font-semibold text-gray-600 focus:outline-none transition duration-150 ease-in-out" onclick="changeTab('gastos')">
+                Registrar Gasto
+            </button>
+            <button id="tab-reportes" class="py-3 px-6 text-sm font-semibold text-gray-600 focus:outline-none transition duration-150 ease-in-out" onclick="changeTab('reportes')">
+                Reportes
+            </button>
+        </nav>
+
+        <!-- Contenido de Cuentas/Pedidos (Ventas) -->
+        <div id="content-ventas" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- Columna de Cuentas Abiertas (Izquierda) -->
+                <div class="lg:col-span-1">
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700 flex justify-between items-center">
+                        Cuentas Abiertas
+                        <button onclick="createNewOrder()" class="flex items-center text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 px-3 py-2 rounded-lg shadow-md transition duration-150">
+                            <span class="text-xl mr-1">+</span> Nueva
+                        </button>
+                    </h2>
+                    <div id="open-orders-list" class="space-y-3 h-96 overflow-y-auto pr-2 bg-white p-3 rounded-xl shadow-lg border">
+                        <!-- Cuentas Abiertas se cargarán aquí -->
+                        <p class="text-gray-500 text-center p-4">Cargando cuentas...</p>
+                    </div>
+                </div>
+
+                <!-- Columna de Pedido Activo (Derecha) -->
+                <div class="lg:col-span-2">
+                    <h2 class="text-2xl font-bold mb-4 text-gray-700">Pedido Activo: <span id="order-title" class="text-teal-600">-- Seleccione o Cree --</span></h2>
+
+                    <!-- Sección de Botones de Menú -->
+                    <div id="menu-buttons" class="bg-white p-4 rounded-xl shadow-lg mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <button onclick="addItemToOrder('Taco', 15.00)" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Taco ($15)
+                        </button>
+                        <button onclick="addItemToOrder('Burrito', 50.00)" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Burrito ($50)
+                        </button>
+                        <button onclick="addItemToOrder('Quesadilla', 20.00)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Quesadilla ($20)
+                        </button>
+                        <button onclick="addItemToOrder('Volcán', 25.00)" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Volcán ($25)
+                        </button>
+                        <button onclick="addItemToOrder('Agua Litro', 30.00)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Agua Litro ($30)
+                        </button>
+                        <button onclick="addItemToOrder('Agua Medio', 20.00)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Agua Medio ($20)
+                        </button>
+                        <button onclick="addItemToOrder('Quesa Taco', 20.00)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Quesa Taco ($20)
+                        </button>
+                        <button onclick="addItemToOrder('Refresco', 35.00)" class="col-span-2 sm:col-span-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            1 Refresco ($35)
+                        </button>
+                        <button onclick="clearCurrentOrderItems()" class="col-span-2 sm:col-span-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Limpiar Pedido
+                        </button>
+                    </div>
+
+                    <!-- Detalle del Pedido -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg border space-y-3">
+                        <div class="flex justify-between items-center pb-2 border-b border-gray-100">
+                            <span class="text-lg font-bold text-gray-700">TOTAL DEL PEDIDO:</span>
+                            <span id="order-total" class="text-3xl font-extrabold text-teal-600">$0.00</span>
+                        </div>
+                        <div id="current-order-items" class="h-40 overflow-y-auto space-y-1">
+                            <p id="empty-order-message" class="text-gray-400 text-center py-4">Agregue items con los botones de arriba.</p>
+                        </div>
+                        <div id="order-message" class="mt-4 text-center p-2 rounded-lg hidden"></div>
+
+                        <!-- Botones de Acción -->
+                        <div class="pt-4 space-y-2">
+                            <select id="payment-method" class="block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:border-teal-500 focus:ring-teal-500">
+                                <option value="Efectivo">Pagar con Efectivo</option>
+                                <option value="Tarjeta">Pagar con Tarjeta</option>
+                            </select>
+
+                            <div class="flex space-x-2">
+                                <button onclick="payCurrentOrder()" class="flex-1 py-3 px-4 rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150" id="pay-button">
+                                    PAGAR CUENTA
+                                </button>
+                                <button onclick="cancelCurrentOrder()" class="py-3 px-4 rounded-lg shadow-md text-sm font-medium text-red-600 bg-white border border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="content-gastos" class="tab-content hidden">
+            <h2 class="text-2xl font-bold mb-4 text-gray-700">Nuevo Gasto</h2>
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <form id="form-gasto" class="space-y-4">
+                    <!-- ... contenido del formulario de gastos (sin cambios) ... -->
+                    <div>
+                        <label for="gasto-monto" class="block text-sm font-medium text-gray-700">Monto ($)</label>
+                        <input type="number" step="0.01" id="gasto-monto" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:border-teal-500 focus:ring-teal-500 transition duration-150" placeholder="Ej: 500.00">
+                    </div>
+                    <div>
+                        <label for="gasto-categoria" class="block text-sm font-medium text-gray-700">Categoría</label>
+                        <select id="gasto-categoria" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:border-teal-500 focus:ring-teal-500 transition duration-150">
+                            <option value="Ingredientes">Ingredientes</option>
+                            <option value="Renta">Renta/Servicios</option>
+                            <option value="Sueldos">Sueldos</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="gasto-descripcion" class="block text-sm font-medium text-gray-700">Descripción</label>
+                        <input type="text" id="gasto-descripcion" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:border-teal-500 focus:ring-teal-500 transition duration-150" placeholder="Ej: Compra de carne al pastor">
+                    </div>
+                    <button type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
+                        Registrar Gasto
+                    </button>
+                </form>
+                <div id="gasto-message" class="mt-4 text-center p-2 rounded-lg hidden"></div>
+            </div>
+
+            <h3 class="text-xl font-bold mt-8 mb-4 text-gray-700">Últimos 5 Gastos</h3>
+            <div id="gastos-list" class="space-y-2">
+                <!-- Los gastos se cargarán aquí -->
+            </div>
+        </div>
+
+        <div id="content-reportes" class="tab-content hidden">
+            <h2 class="text-2xl font-bold mb-4 text-gray-700">Resumen de Reportes</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Tarjeta de Ingresos (Ahora solo Ordenes PAGADAS) -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-teal-500">
+                    <p class="text-sm font-medium text-gray-500">Ingresos (Órdenes Pagadas)</p>
+                    <p id="total-ventas" class="text-3xl font-bold text-teal-700 mt-1">$0.00</p>
+                </div>
+                <!-- Tarjeta de Gastos -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-red-500">
+                    <p class="text-sm font-medium text-gray-500">Gastos Totales</p>
+                    <p id="total-gastos" class="text-3xl font-bold text-red-700 mt-1">$0.00</p>
+                </div>
+                <!-- Tarjeta de Ganancia -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-indigo-500">
+                    <p class="text-sm font-medium text-gray-500">Ganancia Neta</p>
+                    <p id="ganancia-neta" class="text-3xl font-bold text-indigo-700 mt-1">$0.00</p>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-bold mt-8 mb-4 text-gray-700">Desglose de Pago (Órdenes Pagadas)</h3>
+            <div class="bg-white p-6 rounded-xl shadow-lg space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600 font-medium">Ventas en Efectivo:</span>
+                    <span id="ventas-efectivo" class="font-semibold text-gray-800">$0.00</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600 font-medium">Ventas con Tarjeta:</span>
+                    <span id="ventas-tarjeta" class="font-semibold text-gray-800">$0.00</span>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-bold mt-8 mb-4 text-gray-700">Últimas 10 Transacciones (Pedidos Pagados y Gastos)</h3>
+            <div id="historial-completo" class="space-y-2">
+                <!-- Historial combinado se cargará aquí -->
+            </div>
+        </div>
+
+        <footer class="mt-10 text-center text-sm text-gray-400">
+            <p>Hecho con egg para la Taquería. Desarrollado con Gemini Firebase Firestore.</p>
+        </footer>
+    </div>
+
+    <!-- Configuración de Firebase -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- Logica de negocio  -->
+    <script type="module" src="main.js"></script>
+
+</body>
+</html>
