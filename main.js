@@ -5,6 +5,7 @@ import {
     signInWithCustomToken,
     onAuthStateChanged,
     signInWithEmailAndPassword,
+        // --- Mostrar/ocultar selección de billetes y calcular cambio ---
     createUserWithEmailAndPassword,
     signOut,
     GoogleAuthProvider,
@@ -567,9 +568,6 @@ window.payCurrentOrder = async () => {
         return;
     }
 
-    isPaying = true;
-    payButton.textContent = "Procesando...";
-
     try {
         await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
             status: 'Pagada',
@@ -601,6 +599,14 @@ window.payCurrentOrder = async () => {
         currentOrderItems = [];
         orderTitleSpan.textContent = '-- Seleccione o Cree --';
         renderCurrentOrder();
+
+        // Limpiar selector de billetes y campo custom
+        const cashBillsSelect = document.getElementById('cash-bills');
+        const cashCustomInput = document.getElementById('cash-custom');
+        const cashChangeSpan = document.getElementById('cash-change');
+        if (cashBillsSelect) cashBillsSelect.value = '0';
+        if (cashCustomInput) cashCustomInput.value = '';
+        if (cashChangeSpan) cashChangeSpan.textContent = '';
 
         showMessage('order-message', `Cuenta ${paidOrderName} pagada con éxito: ${formatCurrency(totalAmount)}`, true);
 
@@ -972,4 +978,47 @@ window.onload = () => {
             ? '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.956 9.956 0 012.223-3.592M6.634 6.634A9.956 9.956 0 0112 5c4.477 0 8.268 2.943 9.542 7a9.956 9.956 0 01-4.293 5.255M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" /></svg>'
             : '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>';
     });
+
+    // --- Lógica de pago en efectivo: mostrar selector de billetes y calcular cambio ---
+    const cashBillsContainer = document.getElementById('cash-bills-container');
+    const cashBillsSelect = document.getElementById('cash-bills');
+    const cashCustomInput = document.getElementById('cash-custom');
+    const cashChangeSpan = document.getElementById('cash-change');
+
+    function updateCashChange() {
+        const total = parseFloat(orderTotalSpan.textContent.replace(/[^\d.]/g, '')) || 0;
+        let cashReceived = 0;
+        const billValue = parseInt(cashBillsSelect.value, 10) || 0;
+        const customValue = parseInt(cashCustomInput.value, 10) || 0;
+        cashReceived = billValue + customValue;
+        if (cashReceived > 0 && total > 0) {
+            const change = cashReceived - total;
+            cashChangeSpan.textContent = change >= 0 ? `Cambio: $${change.toFixed(2)}` : '';
+            cashChangeSpan.classList.toggle('text-red-600', change < 0);
+            cashChangeSpan.classList.toggle('text-green-700', change >= 0);
+        } else {
+            cashChangeSpan.textContent = '';
+        }
+    }
+
+    if (paymentMethodSelect && cashBillsContainer && cashBillsSelect && cashCustomInput && cashChangeSpan) {
+        paymentMethodSelect.addEventListener('change', () => {
+            if (paymentMethodSelect.value === 'Efectivo') {
+                cashBillsContainer.classList.remove('hidden');
+            } else {
+                cashBillsContainer.classList.add('hidden');
+                cashChangeSpan.textContent = '';
+                cashBillsSelect.value = '0';
+                cashCustomInput.value = '';
+            }
+        });
+        cashBillsSelect.addEventListener('change', updateCashChange);
+        cashCustomInput.addEventListener('input', updateCashChange);
+        // Inicializar visibilidad
+        if (paymentMethodSelect.value === 'Efectivo') {
+            cashBillsContainer.classList.remove('hidden');
+        } else {
+            cashBillsContainer.classList.add('hidden');
+        }
+    }
 }

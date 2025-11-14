@@ -220,6 +220,21 @@
                                 <option value="Tarjeta">Pagar con Tarjeta</option>
                             </select>
 
+                            <!-- Selector de billetes y cambio para efectivo -->
+                            <div id="cash-bills-container" class="hidden mt-2 flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-teal-200 shadow-sm">
+                                <label for="cash-bills" class="text-xs text-gray-600 font-semibold mr-1">Billete:</label>
+                                <select id="cash-bills" class="text-sm border border-teal-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-400 focus:border-teal-500 transition w-24 bg-white">
+                                    <option value="0">Selecciona</option>
+                                    <option value="50">$50</option>
+                                    <option value="100">$100</option>
+                                    <option value="200">$200</option>
+                                    <option value="500">$500</option>
+                                    <option value="1000">$1000</option>
+                                </select>
+                                <input id="cash-custom" type="number" min="0" placeholder="Otro" class="text-sm border border-teal-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-400 focus:border-teal-500 transition w-20 bg-white" />
+                                <span id="cash-change" class="ml-3 text-green-700 font-bold text-sm"></span>
+                            </div>
+
                             <div class="flex space-x-2">
                                 <button onclick="payCurrentOrder()"
                                     class="flex-1 py-3 px-4 rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150"
