@@ -1,0 +1,16 @@
+{
+  "name": "tacospos",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "emulators:start": "npx firebase emulators:start --import=./emulator-data --export-on-exit --only firestore,auth,hosting,ui",
+    "start": "npx http-server . -p 5000 -c-1"
+  },
+  "devDependencies": {
+    "firebase-tools": "^12.9.1",
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "puppeteer": "^24.36.1"
+  }
+}

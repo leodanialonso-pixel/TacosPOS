@@ -1,18 +1,19 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import {
     getAuth,
+    connectAuthEmulator,
     signInAnonymously,
     signInWithCustomToken,
     onAuthStateChanged,
     signInWithEmailAndPassword,
-        // --- Mostrar/ocultar selección de billetes y calcular cambio ---
     createUserWithEmailAndPassword,
     signOut,
     GoogleAuthProvider,
     signInWithPopup
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; 
 import {
     getFirestore,
+    connectFirestoreEmulator,
     collection,
     addDoc,
     query,
@@ -23,8 +24,9 @@ import {
     where,
     updateDoc,
     doc,
+    getDoc,
     deleteDoc
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
 
 // Establecer nivel de log para depuración de Firestore
 setLogLevel('Debug');
@@ -42,6 +44,12 @@ let currentDate = null;
 let isAuthReady = false;
 let isPaying = false; // Flag para evitar doble pago
 let isRegistering = false; // Flag para alternar entre login y registro
+
+// Estados para órdenes y platos (nuevo)
+let currentOrderPlates = []; // [{ name: 'Plato 1', items: [{name, price}] }]
+let currentOrderType = null; // 'comer' | 'llevar'
+let currentPlateIndex = null; // índice del plato activo
+
 
 // --- Estado de la Aplicación de Cuentas ---
 let activeOrderId = null; // ID de la orden actualmente seleccionada/en edición
@@ -69,6 +77,15 @@ const emptyOrderMessage = document.getElementById('empty-order-message');
 const paymentMethodSelect = document.getElementById('payment-method');
 const orderMessageDiv = document.getElementById('order-message');
 const payButton = document.getElementById('pay-button');
+
+// Enlazar el botón de "Nueva" con la función del modal por si el onclick inline no existe aún
+const openNewOrderBtn = document.getElementById('open-new-order-btn');
+if (openNewOrderBtn) {
+    openNewOrderBtn.addEventListener('click', () => {
+        if (typeof window.openNewOrderModal === 'function') window.openNewOrderModal();
+        else alert('La app se está cargando, espere un momento...');
+    });
+}
 
 // Referencias de Gastos
 const formGasto = document.getElementById('form-gasto');
@@ -284,6 +301,18 @@ if (firebaseConfig) {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
+
+        // Conectar con emuladores si estamos en entorno local
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            try {
+                connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
+                connectFirestoreEmulator(db, "localhost", 8080);
+                console.log("🔁 Conectado a Firebase Emulators (Auth 9099, Firestore 8080)");
+            } catch (e) {
+                console.warn("⚠️ Error al conectar Emulators:", e);
+            }
+        }
+
         console.log("✅ Firebase inicializado correctamente");
         console.log("🔥 Firestore:", !!db);
         console.log("🔐 Auth:", !!auth);
@@ -400,17 +429,47 @@ window.deleteOrder = async (orderId) => {
     }
 };
 
+function calculateTotalFromPlates(plates) {
+    if (!Array.isArray(plates) || plates.length === 0) return 0;
+    return plates.reduce((sum, plate) => {
+        const plateItems = plate.items || [];
+        return sum + plateItems.reduce((s, it) => s + (parseFloat(it.price) || 0), 0);
+    }, 0);
+}
+
 function renderCurrentOrder() {
-    const total = calculateTotal(currentOrderItems);
+    // Calcular total según tipo de orden
+    const total = currentOrderType === 'comer' ? calculateTotalFromPlates(currentOrderPlates) : calculateTotal(currentOrderItems);
     orderTotalSpan.textContent = formatCurrency(total);
 
-    if (currentOrderItems.length === 0) {
+    if ((currentOrderType === 'comer' && currentOrderPlates.length === 0) || (currentOrderType !== 'comer' && currentOrderItems.length === 0)) {
         currentOrderItemsDiv.innerHTML = '<p id="empty-order-message" class="text-gray-400 text-center py-4">Agregue items con los botones de arriba.</p>';
         return;
     }
 
-    // Mostrar cada item con botón de eliminar
-    currentOrderItemsDiv.innerHTML = currentOrderItems.map((item, idx) => `
+    // Mostrar platos o items según tipo
+    if (currentOrderType === 'comer') {
+        currentOrderItemsDiv.innerHTML = currentOrderPlates.map((plate, pIdx) => `
+            <div class="mb-2">
+                <div class="flex items-center justify-between bg-gray-100 p-2 rounded-t-md">
+                    <span class="font-semibold">${plate.name || `Plato ${pIdx+1}`}</span>
+                    <span class="text-sm text-gray-500">${plate.items?.length || 0} items - ${formatCurrency((plate.items||[]).reduce((s,i)=>s+ (parseFloat(i.price)||0),0))}</span>
+                </div>
+                <div class="p-2 border rounded-b-md space-y-1">
+                    ${(plate.items||[]).map((item, idx)=>`
+                        <div class="flex justify-between items-center p-1 rounded-lg active-order-item group">
+                            <span class="text-gray-700 font-medium">${item.name}</span>
+                            <span class="font-semibold text-teal-600">${formatCurrency(item.price)}</span>
+                            <button class="ml-2 text-red-500 hover:text-red-700 px-2 py-1 rounded focus:outline-none" title="Eliminar item" onclick="removeItemFromPlate(${pIdx}, ${idx})">
+                                <svg xmlns='http://www.w3.org/2000/svg' class='h-5 w-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 18L18 6M6 6l12 12'/></svg>
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    } else {
+        currentOrderItemsDiv.innerHTML = currentOrderItems.map((item, idx) => `
                 <div class="flex justify-between items-center p-2 rounded-lg active-order-item group">
                     <span class="text-gray-700 font-medium">${item.name}</span>
                     <span class="font-semibold text-teal-600">${formatCurrency(item.price)}</span>
@@ -419,6 +478,7 @@ function renderCurrentOrder() {
                     </button>
                 </div>
             `).join('');
+    }
 }
 
 window.addItemToOrder = async (name, price) => {
@@ -428,22 +488,40 @@ window.addItemToOrder = async (name, price) => {
     }
 
     const newItem = { name, price, addedAt: Date.now() };
-    currentOrderItems.push(newItem);
 
-    // Actualizar Firestore
     try {
-        // Se usa JSON.stringify/parse ya que Firestore tiene limitaciones con arrays anidados
-        await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
-            items: JSON.parse(JSON.stringify(currentOrderItems)), // Clonar para evitar problemas de referencia
-            total: calculateTotal(currentOrderItems),
-            updatedAt: serverTimestamp()
-        });
+        if (currentOrderType === 'comer') {
+            // Asegurar que exista un plato activo
+            if (currentPlateIndex === null || !currentOrderPlates[currentPlateIndex]) {
+                await addPlateToOrder();
+            }
+            currentOrderPlates[currentPlateIndex].items.push(newItem);
+
+            // Actualizar Firestore con plates
+            await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
+                plates: JSON.parse(JSON.stringify(currentOrderPlates)),
+                total: calculateTotalFromPlates(currentOrderPlates),
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            currentOrderItems.push(newItem);
+            await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
+                items: JSON.parse(JSON.stringify(currentOrderItems)),
+                total: calculateTotal(currentOrderItems),
+                updatedAt: serverTimestamp()
+            });
+        }
         renderCurrentOrder();
     } catch (error) {
         console.error("Error al añadir item:", error);
         showMessage('order-message', 'Error al actualizar la orden en DB.', false);
-        // Si falla, revertir el item en el array local
-        currentOrderItems.pop();
+        // Revertir si falla
+        if (currentOrderType === 'comer') {
+            const p = currentOrderPlates[currentPlateIndex];
+            if (p && p.items && p.items.length) p.items.pop();
+        } else {
+            currentOrderItems.pop();
+        }
     }
 };
 
@@ -453,19 +531,28 @@ window.clearCurrentOrderItems = async () => {
         return;
     }
 
-    // Usar una confirmación de UI en lugar de window.confirm()
     if (!confirm("¿Está seguro que desea limpiar todos los items de la cuenta activa?")) {
         return;
     }
 
-    currentOrderItems = [];
-
     try {
-        await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
-            items: [],
-            total: 0,
-            updatedAt: serverTimestamp()
-        });
+        if (currentOrderType === 'comer') {
+            currentOrderPlates = [];
+            currentPlateIndex = null;
+            await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
+                plates: [],
+                total: 0,
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            currentOrderItems = [];
+            await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
+                items: [],
+                total: 0,
+                updatedAt: serverTimestamp()
+            });
+        }
+
         renderCurrentOrder();
         showMessage('order-message', 'Items de la cuenta limpiados.', true);
     } catch (error) {
@@ -474,82 +561,236 @@ window.clearCurrentOrderItems = async () => {
     }
 };
 
+// Agregar un nuevo plato a la orden actual (solo para comer aquí)
+window.addPlateToOrder = async (plateName) => {
+    if (!activeOrderId) {
+        showMessage('order-message', 'Abra una orden primero para agregar un plato.', false);
+        return;
+    }
+    if (currentOrderType !== 'comer') {
+        showMessage('order-message', 'Los platos solo aplican a órdenes para comer aquí.', false);
+        return;
+    }
+
+    const name = plateName || `Plato ${currentOrderPlates.length + 1}`;
+    const newPlate = { name, items: [] };
+    currentOrderPlates.push(newPlate);
+    currentPlateIndex = currentOrderPlates.length - 1;
+
+    try {
+        await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
+            plates: JSON.parse(JSON.stringify(currentOrderPlates)),
+            updatedAt: serverTimestamp()
+        });
+        updatePlateSelectUI();
+        renderCurrentOrder();
+        showMessage('order-message', `Se agregó ${name}`, true);
+    } catch (error) {
+        console.error('Error al agregar plato:', error);
+        showMessage('order-message', 'Error al agregar plato en DB.', false);
+        currentOrderPlates.pop();
+        currentPlateIndex = currentOrderPlates.length - 1;
+    }
+};
+
+function updatePlateSelectUI() {
+    const sel = document.getElementById('plate-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+    currentOrderPlates.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx; opt.text = p.name || `Plato ${idx+1}`;
+        sel.appendChild(opt);
+    });
+    if (currentPlateIndex === null && currentOrderPlates.length > 0) currentPlateIndex = 0;
+    sel.value = currentPlateIndex ?? 0;
+    sel.onchange = (e) => { currentPlateIndex = parseInt(e.target.value, 10); renderCurrentOrder(); };
+}
+
+window.removeItemFromPlate = async (plateIndex, itemIndex) => {
+    if (!activeOrderId) { showMessage('order-message','No hay orden activa.', false); return; }
+    const plate = currentOrderPlates[plateIndex];
+    if (!plate || !plate.items || !plate.items[itemIndex]) { showMessage('order-message', 'Item no encontrado.', false); return; }
+
+    const removed = plate.items.splice(itemIndex,1);
+    try {
+        await updateDoc(doc(db, getCollectionPath('orders'), activeOrderId), {
+            plates: JSON.parse(JSON.stringify(currentOrderPlates)),
+            total: calculateTotalFromPlates(currentOrderPlates),
+            updatedAt: serverTimestamp()
+        });
+        renderCurrentOrder();
+        showMessage('order-message', 'Item eliminado del plato.', true);
+    } catch (error) {
+        console.error('Error al eliminar item del plato:', error);
+        // Revertir
+        plate.items.splice(itemIndex, 0, removed[0]);
+        showMessage('order-message','Error al eliminar item en DB.', false);
+    }
+};
+
 
 // --- Lógica de Cuentas (Órdenes) ---
 
+window.openNewOrderModal = () => {
+    const modal = document.getElementById('new-order-modal');
+    if (!modal) return;
+    const nameInput = document.getElementById('new-order-name');
+    if (nameInput) nameInput.value = '';
+    const typeRadio = document.querySelector('input[name="new-order-type"][value="comer"]');
+    if (typeRadio) typeRadio.checked = true;
+    modal.classList.remove('hidden');
+};
+
+window.closeNewOrderModal = () => {
+    const modal = document.getElementById('new-order-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+};
+
 window.createNewOrder = async () => {
-    console.log("🆕 Intentando crear nueva orden...");
-    console.log("📊 Estado de autenticación:", { isAuthReady, userId, dbReady: !!db });
+    const nameInput = document.getElementById('new-order-name');
+    const typeEl = document.querySelector('input[name="new-order-type"]:checked');
+    if (!typeEl) { showMessage('order-message','Selecciona el tipo de orden.', false); return; }
+    let orderName = nameInput?.value?.trim() || '';
+    if (!orderName) orderName = `#${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const orderType = typeEl.value === 'comer' ? 'comer' : 'llevar';
+
+    console.log("🆕 Intentando crear nueva orden...", { orderName, orderType });
 
     if (!isAuthReady) {
-        console.log("❌ Base de datos no lista");
         showMessage('order-message', 'Base de datos no lista, espere por favor.', false);
+        closeNewOrderModal();
         return;
     }
 
     const collectionPath = getCollectionPath('orders');
-    console.log("📂 Ruta de colección:", collectionPath);
 
-    // Solicitar nombre personalizado para el pedido
-    let orderName = prompt("Nombre para el pedido (ejemplo: Pedido de Juan):", "");
-    if (orderName === null) return; // Cancelado
-    orderName = orderName.trim();
-    if (!orderName) orderName = `#${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-
+    // Construir el objeto sin incluir propiedades con valor `undefined` (Firestore no acepta `undefined`)
     const newOrder = {
         status: 'Abierta',
-        items: [],
+        type: orderType,
         total: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         name: orderName
     };
-
-    console.log("📄 Documento a crear:", newOrder);
+    if (orderType === 'comer') {
+        newOrder.plates = [];
+        // Ensure items is not present
+        if (newOrder.items !== undefined) delete newOrder.items;
+    } else {
+        newOrder.items = [];
+        // Ensure plates is not present
+        if (newOrder.plates !== undefined) delete newOrder.plates;
+    }
 
     try {
-        console.log("💾 Intentando guardar en Firestore...");
-        const docRef = await addDoc(collection(db, collectionPath), newOrder);
+            const createBtn = document.getElementById('create-order-btn');
+        const spinner = document.getElementById('create-order-spinner');
+        const createText = document.getElementById('create-order-text');
+        if (createBtn) createBtn.disabled = true;
+        if (spinner) spinner.classList.remove('hidden');
+        if (createText) createText.textContent = 'Creando...';
+
+        // Sanitizar profundamente para eliminar cualquier valor `undefined` anidado (Firestore no acepta undefined)
+        function deepSanitize(obj) {
+            // Preservar sentinels de Firestore como serverTimestamp (obj con _methodName)
+            if (obj && typeof obj === 'object' && ('_methodName' in obj)) {
+                return obj;
+            }
+            if (Array.isArray(obj)) {
+                return obj
+                    .map(v => deepSanitize(v))
+                    .filter(v => v !== undefined);
+            }
+            if (obj && typeof obj === 'object') {
+                const res = {};
+                Object.keys(obj).forEach(k => {
+                    const v = deepSanitize(obj[k]);
+                    if (v !== undefined) res[k] = v;
+                });
+                return res;
+            }
+            return obj === undefined ? undefined : obj;
+        }
+        const sanitized = deepSanitize(newOrder);
+        console.log('📦 Payload para crear orden (sanitizado):', JSON.parse(JSON.stringify(sanitized)));
+
+        const docRef = await addDoc(collection(db, collectionPath), sanitized);
         console.log("✅ Orden creada exitosamente. ID:", docRef.id);
+
+        // Emitir evento para separar lógica posterior por tipo de orden (hook para tu futura lógica por plato)
+        try { window.dispatchEvent(new CustomEvent('orderCreated', { detail: { orderId: docRef.id, type: orderType } })); } catch (e) { /* no bloquear flujo */ }
+
+        closeNewOrderModal();
 
         // Cargar inmediatamente la nueva orden como activa
         loadOrder(docRef.id, newOrder.items || [], newOrder.total);
-        showMessage('order-message', `Nueva cuenta "${orderName}" abierta.`, true);
+        showMessage('order-message', `Nueva cuenta "${orderName}" abierta (${orderType === 'comer' ? 'Comer aquí' : 'Para llevar'}).`, true);
     } catch (error) {
         console.error("❌ Error detallado al crear orden:", error);
-        console.error("Código:", error.code);
-        console.error("Mensaje:", error.message);
-        console.error("Stack:", error.stack);
-
         showMessage('order-message', `Error: ${error.message}`, false);
+    } finally {
+        const createBtnFinal = document.getElementById('create-order-btn');
+        const spinnerFinal = document.getElementById('create-order-spinner');
+        const createTextFinal = document.getElementById('create-order-text');
+        if (createBtnFinal) createBtnFinal.disabled = false;
+        if (spinnerFinal) spinnerFinal.classList.add('hidden');
+        if (createTextFinal) createTextFinal.textContent = 'Crear Orden';
     }
 };
 
-window.loadOrder = (orderId, items, total) => {
+window.loadOrder = async (orderId, items, total) => {
     activeOrderId = orderId;
-    // Asegurarse de que los items se copien correctamente al estado local
-    currentOrderItems = Array.isArray(items) ? [...items] : [];
 
-    // Buscar el nombre en la lista de órdenes abiertas
-    let orderName = `#${orderId.substring(0, 5).toUpperCase()}`;
-    const tileElement = document.getElementById(`tile-${orderId}`);
-    if (tileElement) {
-        const nameEl = tileElement.querySelector('.order-name');
-        if (nameEl) orderName = nameEl.textContent;
+    // Traer el documento completo desde Firestore para mantener consistencia con plates/type
+    try {
+        const snap = await getDoc(doc(db, getCollectionPath('orders'), orderId));
+        const data = snap.exists() ? snap.data() : { items: items || [], total: total || 0 };
+
+        // Establecer estado local según tipo
+        currentOrderType = data.type || 'llevar';
+        if (currentOrderType === 'comer') {
+            currentOrderPlates = Array.isArray(data.plates) ? JSON.parse(JSON.stringify(data.plates)) : [];
+            currentOrderItems = [];
+        } else {
+            currentOrderItems = Array.isArray(data.items) ? JSON.parse(JSON.stringify(data.items)) : [];
+            currentOrderPlates = [];
+        }
+
+        // Actualizar UI: título
+        let orderName = data.name || `#${orderId.substring(0, 5).toUpperCase()}`;
+        orderTitleSpan.textContent = `${orderName} (${formatCurrency(data.total || 0)})`;
+
+        // Mostrar/ocultar controles de comedor
+        const diningControls = document.getElementById('dining-controls');
+        if (diningControls) {
+            if (currentOrderType === 'comer') {
+                diningControls.classList.remove('hidden');
+                updatePlateSelectUI();
+            } else {
+                diningControls.classList.add('hidden');
+                currentPlateIndex = null;
+            }
+        }
+
+        renderCurrentOrder();
+
+        // Resaltar la cuenta activa con color especial
+        const tileElement = document.getElementById(`tile-${orderId}`);
+        document.querySelectorAll('.order-tile').forEach(el => {
+            el.classList.remove('active', 'bg-yellow-100', 'border-yellow-400');
+        });
+        if (tileElement) {
+            tileElement.classList.add('active', 'bg-yellow-100', 'border-yellow-400');
+        }
+
+        showMessage('order-message', `Cuenta activa cambiada: ${orderName}`, true);
+    } catch (error) {
+        console.error('Error al cargar orden:', error);
+        showMessage('order-message', 'Error al cargar orden desde DB.', false);
     }
-    orderTitleSpan.textContent = `${orderName} (${formatCurrency(total)})`;
-    renderCurrentOrder();
-
-    // Resaltar la cuenta activa con color especial
-    document.querySelectorAll('.order-tile').forEach(el => {
-        el.classList.remove('active', 'bg-yellow-100', 'border-yellow-400');
-    });
-    if (tileElement) {
-        tileElement.classList.add('active', 'bg-yellow-100', 'border-yellow-400');
-    }
-
-    // Toast/Notificación visual al cambiar de cuenta activa
-    showMessage('order-message', `Cuenta activa cambiada: ${orderName}`, true);
 };
 
 window.payCurrentOrder = async () => {
@@ -560,7 +801,7 @@ window.payCurrentOrder = async () => {
     if (isPaying) return; // Evitar doble clic
 
     const paymentMethod = paymentMethodSelect.value;
-    const totalAmount = calculateTotal(currentOrderItems);
+    const totalAmount = currentOrderType === 'comer' ? calculateTotalFromPlates(currentOrderPlates) : calculateTotal(currentOrderItems);
 
     const confirmation = `¿Desea pagar la cuenta #${activeOrderId.substring(0, 5).toUpperCase()} por ${formatCurrency(totalAmount)} con ${paymentMethod}?`;
 
@@ -678,8 +919,16 @@ function renderItem(item, type) {
         sign = item.status === 'Pagada' ? '+' : '';
         textColor = item.status === 'Pagada' ? 'text-teal-600' : 'text-blue-600';
         const orderName = item.name ? item.name : `#${item.id.substring(0, 5).toUpperCase()}`;
-        title = item.status === 'Pagada' ? `Orden Pagada: <span class="order-name">${orderName}</span>` : `Cuenta Abierta: <span class="order-name">${orderName}</span>`;
-        description = `${item.items.length} items.`;
+        // Mostrar distinto para comer/llevar
+        if (item.type === 'comer') {
+            title = item.status === 'Pagada' ? `Mesa Pagada: <span class="order-name">${orderName}</span>` : `Para Comer (Mesas): <span class="order-name">${orderName}</span>`;
+            const platesCount = (item.plates || []).length;
+            const itemsCount = (item.plates || []).reduce((s,p)=>s + (p.items? p.items.length:0),0);
+            description = `${platesCount} platos · ${itemsCount} items`;
+        } else {
+            title = item.status === 'Pagada' ? `Pedido Pagado: <span class="order-name">${orderName}</span>` : `Pedido Abierto: <span class="order-name">${orderName}</span>`;
+            description = `${(item.items || []).length} items.`;
+        }
         if (item.method) description += ` (${item.method})`;
 
     } else if (isExpense) {

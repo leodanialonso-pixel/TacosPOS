@@ -111,3 +111,34 @@ Las reglas actuales en `firestore.rules` permiten acceso a usuarios autenticados
 2. Ejecutar `firebase init` para conectar con tu proyecto
 3. Probar localmente con `firebase serve`
 4. Desplegar con `firebase deploy`
+
+---
+
+## 🧪 Emuladores (Desarrollo Local sin tocar producción) ⚠️
+
+Para probar la app localmente y no tocar tu proyecto en la nube, usa los emuladores de Firebase.
+
+1) Instala dependencias (opcional - puedes usar `npx` sin instalación global):
+
+```bash
+# Instala dependencias de desarrollo (recomendado)
+npm install
+```
+
+2) Inicia los emuladores (Auth, Firestore y Hosting):
+
+```bash
+# Inicia emuladores (puede solicitar descargar firebase-tools la primera vez)
+npm run emulators:start
+# o directamente con npx:
+npx firebase emulators:start --only firestore,auth,hosting,ui --import=./emulator-data --export-on-exit
+```
+
+3) Abre la app en el navegador:
+
+- Hosting emulator: http://localhost:5000
+- Emulators UI: http://localhost:4000
+
+4) Nota: el código de la app detecta `localhost` y se conectará automáticamente a los emuladores (Auth = 9099, Firestore = 8080).
+
+¡Ahora puedes probar registro, login y operaciones en Firestore sin afectar tu proyecto en la nube! 🎉

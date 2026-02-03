@@ -11,6 +11,12 @@
     <title>Tacos Mike - Punto de Venta Simple</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style link="styles.css"></style>
+    <script>
+        // Placeholder para evitar ReferenceError si el usuario hace click antes de que main.js se cargue
+        window.openNewOrderModal = window.openNewOrderModal || function() {
+            try { alert('La app se está cargando, espere un momento...'); } catch (e) { console.log('openNewOrderModal placeholder'); }
+        };
+    </script>
 </head>
 
 <body class="min-h-screen">
@@ -142,7 +148,7 @@
                 <div class="lg:col-span-1">
                     <h2 class="text-2xl font-bold mb-4 text-gray-700 flex justify-between items-center">
                         Cuentas Abiertas
-                        <button onclick="createNewOrder()"
+                        <button id="open-new-order-btn"
                             class="flex items-center text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 px-3 py-2 rounded-lg shadow-md transition duration-150">
                             <span class="text-xl mr-1">+</span> Nueva
                         </button>
@@ -154,52 +160,117 @@
                     </div>
                 </div>
 
+                    <!-- Modal: Crear nueva orden (Comer/Llevar) -->
+                    <div id="new-order-modal" onclick="if (event.target === this) closeNewOrderModal()" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6" role="dialog" aria-modal="true">
+                            <h3 class="text-lg font-bold mb-2">Nueva Orden</h3>
+                            <p class="text-sm text-gray-600 mb-4">Seleccione el tipo de orden y opcionalmente nombre de la cuenta.</p>
+
+                            <div class="mb-4">
+                                <label class="flex items-center gap-2"><input type="radio" name="new-order-type" value="comer" checked /> <span>Comer aquí (por platos)</span></label>
+                                <label class="flex items-center gap-2 mt-2"><input type="radio" name="new-order-type" value="llevar" /> <span>Para llevar (pedidos)</span></label>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700">Nombre (opcional)</label>
+                                <input id="new-order-name" type="text" placeholder="Ej: Pedido de Juan" class="mt-1 w-full rounded border-gray-300 shadow-sm p-2" />
+                            </div>
+
+                            <div class="flex justify-end gap-2">
+                                <button onclick="closeNewOrderModal()" class="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300">Cancelar</button>
+                                <button id="create-order-btn" onclick="createNewOrder()" class="px-3 py-2 rounded bg-teal-600 text-white hover:bg-teal-700 flex items-center">
+                                    <svg id="create-order-spinner" class="hidden animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                                    <span id="create-order-text">Crear Orden</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                 <!-- Columna de Pedido Activo (Derecha) -->
                 <div class="lg:col-span-2">
                     <h2 class="text-2xl font-bold mb-4 text-gray-700">Pedido Activo: <span id="order-title"
                             class="text-teal-600">-- Seleccione o Cree --</span></h2>
 
-                    <!-- Sección de Botones de Menú -->
+                    <!-- Sección de Botones de Menú (actualizado según menú) -->
                     <div id="menu-buttons"
-                        class="bg-white p-4 rounded-xl shadow-lg mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <button onclick="addItemToOrder('Taco', 15.00)"
+                        class="bg-white p-4 rounded-xl shadow-lg mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <button onclick="addItemToOrder('Tacos de Pastor', 16.00)"
                             class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Taco ($15)
+                            Tacos de Pastor ($16)
                         </button>
-                        <button onclick="addItemToOrder('Burrito', 50.00)"
-                            class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Burrito ($50)
+                        <button onclick="addItemToOrder('Tacos de Bistec', 16.00)"
+                            class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Tacos de Bistec ($16)
                         </button>
-                        <button onclick="addItemToOrder('Quesadilla', 20.00)"
+                        <button onclick="addItemToOrder('Tacos de Chorizo', 16.00)"
+                            class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Tacos de Chorizo ($16)
+                        </button>
+                        <button onclick="addItemToOrder('Tacos de Tripa', 16.00)"
+                            class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Tacos de Tripa ($16)
+                        </button>
+                        <button onclick="addItemToOrder('Tacos Combinados', 16.00)"
+                            class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Tacos Combinados ($16)
+                        </button>
+                        <button onclick="addItemToOrder('Quesataco', 22.00)"
                             class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Quesadilla ($20)
+                            Quesataco ($22)
                         </button>
-                        <button onclick="addItemToOrder('Volcán', 25.00)"
+                        <button onclick="addItemToOrder('Tacos de Arrachera', 20.00)"
                             class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Volcán ($25)
+                            Tacos de Arrachera ($20)
                         </button>
-                        <button onclick="addItemToOrder('Agua Litro', 30.00)"
-                            class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Agua Litro ($30)
+                        <button onclick="addItemToOrder('Quesadillas', 33.00)"
+                            class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Quesadillas ($33)
                         </button>
-                        <button onclick="addItemToOrder('Agua Medio', 20.00)"
-                            class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Agua Medio ($20)
+                        <button onclick="addItemToOrder('Volcanes', 22.00)"
+                            class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Volcanes ($22)
                         </button>
-                        <button onclick="addItemToOrder('Quesa Taco', 20.00)"
-                            class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Quesa Taco ($20)
+                        <button onclick="addItemToOrder('Sincronizadas', 60.00)"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Sincronizadas ($60)
                         </button>
-                        <button onclick="addItemToOrder('Refresco', 35.00)"
+                        <button onclick="addItemToOrder('Cazuelas', 110.00)"
+                            class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Cazuelas ($110)
+                        </button>
+                        <button onclick="addItemToOrder('Orden de piña', 110.00)"
+                            class="bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Orden de piña ($110)
+                        </button>
+                        <button onclick="addItemToOrder('Refresco', 27.00)"
                             class="col-span-2 sm:col-span-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
-                            1 Refresco ($35)
+                            Refrescos ($27)
+                        </button>
+                        <button onclick="addItemToOrder('Boing', 27.00)"
+                            class="col-span-2 sm:col-span-2 bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Boing ($27)
+                        </button>
+                        <button onclick="addItemToOrder('Agua 1/2', 22.00)"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Agua 1/2 L ($22)
+                        </button>
+                        <button onclick="addItemToOrder('Agua 1L', 35.00)"
+                            class="bg-green-700 hover:bg-green-800 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                            Agua 1L ($35)
                         </button>
                         <button onclick="clearCurrentOrderItems()"
                             class="col-span-2 sm:col-span-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 rounded-lg transition duration-150 shadow-md">
                             Limpiar Pedido
                         </button>
                     </div>
-
+                    <!-- Controles adicionales para "comer aquí" -->
+                    <div id="dining-controls" class="mb-4 hidden bg-white p-3 rounded-lg shadow-sm border">
+                        <div class="flex items-center gap-3">
+                            <button id="add-plate-btn" onclick="addPlateToOrder()" class="px-3 py-2 bg-yellow-500 text-white rounded">+ Agregar Plato</button>
+                            <label class="text-sm text-gray-600">Plato activo:</label>
+                            <select id="plate-select" class="border rounded px-2 py-1"></select>
+                        </div>
+                    </div>
                     <!-- Detalle del Pedido -->
                     <div class="bg-white p-6 rounded-xl shadow-lg border space-y-3">
                         <div class="flex justify-between items-center pb-2 border-b border-gray-100">
@@ -343,7 +414,8 @@
     <script src="firebase-config.js"></script>
 
     <!-- Logica de negocio  -->
-    <script type="module" src="main.js"></script>
+    <!-- Añadido bust cache para forzar actualización de cliente -->
+    <script type="module" src="main.js?v=20260202.1"></script>
 
 </body>
 
